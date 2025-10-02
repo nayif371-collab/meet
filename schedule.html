@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Book — Dimonds Scheduler</title>
+<style>
+  :root{--bg:#071226;--card:#07122a;--accent:#7c5cff;--muted:#9fb0d6}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;font-family:Inter,Arial;background:linear-gradient(180deg,#071226,#031224);color:#eaf4ff;padding:22px}
+  .wrap{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:22px}
+  .card{background:rgba(255,255,255,0.02);padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+  .owner{display:flex;gap:12px;align-items:center}
+  .avatar{width:64px;height:64px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#3be7d1);display:flex;align-items:center;justify-content:center;font-weight:700;color:#041018}
+  h2{margin:6px 0}
+  .muted{color:var(--muted);font-size:14px}
+  .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px}
+  .day{padding:10px;border-radius:8px;text-align:center;background:rgba(255,255,255,0.01);border:1px solid rgba(255,255,255,0.02);cursor:pointer}
+  .day.disabled{opacity:0.35;cursor:not-allowed}
+  .slots{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .slot{padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.02);cursor:pointer;border:1px solid rgba(255,255,255,0.03)}
+  .slot.selected{background:linear-gradient(90deg,var(--accent),#44b4ff);color:#041018;font-weight:700}
+  label{display:block;margin-top:12px;color:var(--muted);font-size:13px}
+  input,button,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#eaf4ff}
+  .btn{margin-top:10px;background:linear-gradient(90deg,var(--accent),#44b4ff);border:0;padding:12px;border-radius:10px;color:#041018;font-weight:700;cursor:pointer}
+  .note{font-size:13px;color:var(--muted);margin-top:10px}
+  @media (max-width:980px){.wrap{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="mainCard">
+      <div class="owner">
+        <div class="avatar" id="ownerAvatar">D</div>
+        <div>
+          <div id="ownerName" style="font-weight:700">User Name</div>
+          <div id="ownerBio" class="muted">Bio will show here</div>
+        </div>
+      </div>
+ 
+      <h2>Select a date</h2>
+      <div id="calWrap" class="calendar"></div>
+ 
+      <div id="slotsWrap">
+        <div style="margin-top:10px" class="muted">Select a time slot</div>
+        <div class="slots" id="slots"></div>
+      </div>
+ 
+      <label>Your name</label>
+      <input id="guestName" placeholder="Your full name" />
+ 
+      <label>Your email</label>
+      <input id="guestEmail" placeholder="you@something.com" />
+ 
+      <label>Notes (optional)</label>
+      <textarea id="notes" rows="3" placeholder="Agenda or notes"></textarea>
+ 
+      <button class="btn" id="confirm">Confirm booking</button>
+ 
+      <div class="note" id="statusNote">Bookings are stored in your browser (demo). After booking you'll see a confirmation screen.</div>
+    </div>
+ 
+    <aside class="card">
+      <h3>Booking summary</h3>
+      <div style="margin-top:12px">
+        <div style="font-size:13px;color:var(--muted)">Who</div>
+        <div id="sumWho" style="font-weight:700;margin-top:6px">—</div>
+ 
+        <div style="font-size:13px;color:var(--muted);margin-top:12px">When</div>
+        <div id="sumWhen" style="font-weight:700;margin-top:6px">—</div>
+ 
+        <div style="font-size:13px;color:var(--muted);margin-top:12px">Your info</div>
+        <div id="sumYou" style="margin-top:6px;color:var(--muted)">—</div>
+ 
+        <div style="margin-top:16px">
+          <button class="btn" id="viewBookings">View owner's bookings</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+ 
+<script>
+  // Load demo accounts
+  function loadAccounts(){ return JSON.parse(localStorage.getItem('ds_accounts')||'[]'); }
+  const accounts = loadAccounts();
+  // pick the first account in storage for demo; if none, create a sample default
+  let owner = accounts[0] || {name:'Demo Host', email:'host@example.com', slug:'demo', slot:30, bio:'Book a quick meeting', availability: defaultAvailability(), bookings:[]};
+ 
+  // Helper to generate default weekly availability (Mon-Fri 9:00-17:00)
+  function defaultAvailability(){
+    const days = [1,2,3,4,5]; // 0=Sun
+    let out = [];
+    days.forEach(d=>{
+      out.push({weekday:d, from:'09:00', to:'17:00'});
+    });
+    return out;
+  }
+ 
+  // Render owner
+  document.getElementById('ownerName').textContent = owner.name;
+  document.getElementById('ownerBio').textContent = owner.bio || 'No bio provided';
+  document.getElementById('ownerAvatar').textContent = (owner.name||'D').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
+ 
+  // Calendar: show next 14 days
+  const calWrap = document.getElementById('calWrap');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = [];
+  for(let i=0;i<14;i++){
+    const d = new Date(today); d.setDate(today.getDate()+i);
+    days.push(d);
+  }
+ 
+  function isAvailableOn(date){
+    // check owner.availability weekdays
+    const wd = date.getDay(); // 0..6
+    return (owner.availability || []).some(a=> a.weekday === wd );
+  }
+ 
+  days.forEach(d=>{
+    const el = document.createElement('div');
+    el.className = 'day';
+    el.innerHTML = `<div style="font-weight:700">${d.toLocaleDateString(undefined,{weekday:'short'})}</div>
+                    <div style="font-size:13px;margin-top:6px">${d.getDate()} ${d.toLocaleDateString(undefined,{month:'short'})}</div>`;
+    if(!isAvailableOn(d)) el.classList.add('disabled');
+    el.onclick = ()=>{
+      if(!isAvailableOn(d)){ return; }
+      document.querySelectorAll('.day').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      loadSlotsForDate(d);
+    };
+    calWrap.appendChild(el);
+  });
+ 
+  // Slot generation
+  let selectedSlot = null;
+  function loadSlotsForDate(date){
+    const slotsDiv = document.getElementById('slots');
+    slotsDiv.innerHTML = '';
+    selectedSlot = null;
+    // find availability rules for the weekday
+    const wd = date.getDay();
+    const rules = (owner.availability || []).filter(a=> a.weekday===wd);
+    if(rules.length===0){
+      slotsDiv.innerHTML = '<div class="muted" style="color:var(--muted)">No availability on this date.</div>';
+      updateSummary(date, null);
+      return;
+    }
+    // create slots from rules
+    const allSlots = [];
+    rules.forEach(r=>{
+      const [fh,fm] = r.from.split(':').map(Number);
+      const [th,tm] = r.to.split(':').map(Number);
+      const start = new Date(date); start.setHours(fh, fm, 0,0);
+      const end = new Date(date); end.setHours(th, tm, 0,0);
+      const slotMin = owner.slot || 30;
+      for(let s = new Date(start); s < end; s.setMinutes(s.getMinutes()+slotMin)){
+        allSlots.push(new Date(s));
+      }
+    });
+ 
+    // Filter out slots that are already booked for owner
+    const bookings = owner.bookings || [];
+    const freeSlots = allSlots.filter(s=>{
+      return !bookings.some(b => new Date(b.time).getTime() === s.getTime());
+    });
+ 
+    if(freeSlots.length===0){
+      slotsDiv.innerHTML = '<div class="muted">No free slots left for this day.</div>';
+      updateSummary(date, null);
+      return;
+    }
+ 
+    freeSlots.forEach(s=>{
+      const btn = document.createElement('div');
+      btn.className = 'slot';
+      btn.textContent = s.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      btn.onclick = ()=>{
+        document.querySelectorAll('.slot').forEach(x=>x.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedSlot = s;
+        updateSummary(date, s);
+      };
+      slotsDiv.appendChild(btn);
+    });
+    updateSummary(date, null);
+  }
+ 
+  function updateSummary(date, time){
+    document.getElementById('sumWho').textContent = owner.name + ' — ' + (owner.slug ? `/${owner.slug}` : 'booking');
+    if(!date) { document.getElementById('sumWhen').textContent = '—'; }
+    else {
+      const dstr = date.toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+      if(!time) document.getElementById('sumWhen').textContent = dstr;
+      else document.getElementById('sumWhen').textContent = dstr + ' · ' + time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    }
+    const gname = document.getElementById('guestName').value.trim();
+    const gemail = document.getElementById('guestEmail').value.trim();
+    document.getElementById('sumYou').textContent = gname ? `${gname} · ${gemail||'no email'}` : '—';
+  }
+ 
+  // preselect first available day
+  (function pickFirst(){
+    const first = document.querySelector('.day:not(.disabled)');
+    if(first){ first.click(); }
+  })();
+ 
+  // Booking flow
+  document.getElementById('confirm').onclick = ()=>{
+    const name = document.getElementById('guestName').value.trim();
+    const email = document.getElementById('guestEmail').value.trim();
+    const notes = document.getElementById('notes').value.trim();
+    if(!selectedSlot){ alert('Please select a slot.'); return; }
+    if(!name || !email){ alert('Please enter your name and email.'); return; }
+ 
+    // load accounts from storage to ensure add booking to correct account if exists
+    const accounts = JSON.parse(localStorage.getItem('ds_accounts')||'[]');
+    let storeOwner = accounts.find(a => a.email === owner.email) || owner;
+ 
+    // create booking
+    const booking = {id:Date.now().toString(36), guestName:name, guestEmail:email, notes, time:selectedSlot.toISOString(), created: new Date().toISOString()};
+    storeOwner.bookings = storeOwner.bookings || [];
+    // Prevent double-book
+    if(storeOwner.bookings.some(b=> new Date(b.time).getTime() === selectedSlot.getTime())){
+      alert('Sorry, this slot was just booked. Please pick another.');
+      location.reload();
+      return;
+    }
+    storeOwner.bookings.push(booking);
+ 
+    // save back to accounts if owner is persistent account
+    const idx = accounts.findIndex(a=> a.email === storeOwner.email);
+    if(idx>=0){ accounts[idx] = storeOwner; localStorage.setItem('ds_accounts', JSON.stringify(accounts)); }
+    else { /* owner is transient demo -> not saved to list */ }
+ 
+    // Show confirmation UI
+    localStorage.setItem('last_booking', JSON.stringify({ownerEmail:storeOwner.email, booking}));
+    alert('Booking confirmed! A confirmation is stored in your browser. You will be redirected to the confirmation page.');
+    location.href = 'booking-confirmation.html';
+  };
+ 
+  // live update summary on input
+  document.getElementById('guestName').addEventListener('input', ()=> updateSummary(null, selectedSlot));
+  document.getElementById('guestEmail').addEventListener('input', ()=> updateSummary(null, selectedSlot));
+ 
+  document.getElementById('viewBookings').onclick = ()=> {
+    // redirect to owner's dashboard if the owner is a persistent account
+    const accounts = loadAccounts();
+    const found = accounts.find(a=> a.email === owner.email);
+    if(found){
+      localStorage.setItem('ds_current_user', owner.email);
+      location.href = 'dashboard.html';
+    } else {
+      alert('This owner has no public dashboard in this demo.');
+    }
+  };
+</script>
+</body>
+</html>
