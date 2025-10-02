@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Log In — Dimonds Scheduler</title>
+<style>
+  :root{--bg:#061126;--muted:#9fb0d6;--accent:#7c5cff}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#061126,#041022);font-family:Inter,Arial;color:#eaf4ff;padding:20px}
+  .card{background:rgba(255,255,255,0.02);padding:28px;border-radius:14px;max-width:700px;width:100%;border:1px solid rgba(255,255,255,0.03)}
+  h2{margin:0 0 6px 0}
+  .small{color:var(--muted);margin-bottom:14px}
+  select{width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#eaf4ff}
+  .row{display:flex;gap:10px;margin-top:12px}
+  button{padding:12px 14px;border-radius:10px;border:0;cursor:pointer;background:linear-gradient(90deg,var(--accent),#4da6ff);font-weight:700;color:#041018}
+  .ghost{background:transparent;border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Log in</h2>
+    <div class="small">Choose an existing demo account (or create a new one).</div>
+ 
+    <div>
+      <label class="small">Account</label>
+      <select id="accountSelect"></select>
+    </div>
+ 
+    <div class="row">
+      <button id="go">Open Dashboard</button>
+      <button class="ghost" id="make">Create account</button>
+      <button class="ghost" id="home">Back</button>
+    </div>
+  </div>
+ 
+<script>
+  function loadAccounts(){ return JSON.parse(localStorage.getItem('ds_accounts')||'[]'); }
+  const sel = document.getElementById('accountSelect');
+  function refresh(){
+    sel.innerHTML = '';
+    const a = loadAccounts();
+    if(a.length===0){ sel.innerHTML='<option value="">(No accounts found)</option>'; return; }
+    a.forEach(acc=> sel.innerHTML += `<option value="${acc.email}">${acc.name} — ${acc.email}</option>`)
+  }
+  refresh();
+  document.getElementById('go').onclick = ()=>{
+    if(!sel.value){ alert('Please select an account or create one.'); return; }
+    localStorage.setItem('ds_current_user', sel.value);
+    location.href = 'dashboard.html';
+  };
+  document.getElementById('make').onclick = ()=> location.href='signup.html';
+  document.getElementById('home').onclick = ()=> location.href='index.html';
+</script>
+</body>
+</html>
