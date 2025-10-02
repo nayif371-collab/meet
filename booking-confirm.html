@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Booking Confirmed — Dimonds Scheduler</title>
+<style>
+  :root{--bg:#061022;--accent:#7c5cff;--muted:#9fb0d6}
+  body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#061022,#02111c);font-family:Inter,Arial;color:#ecf6ff;padding:20px}
+  .card{background:rgba(255,255,255,0.02);padding:28px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);max-width:680px;width:100%}
+  h2{margin:0 0 8px 0}
+  .muted{color:var(--muted)}
+  .btn{padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),#4da6ff);border:0;color:#041018;font-weight:700;cursor:pointer;margin-top:12px}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Booking confirmed ✅</h2>
+    <div id="summary" class="muted">Loading booking details…</div>
+ 
+    <div style="margin-top:14px">
+      <button class="btn" id="backHome">Back to home</button>
+      <button class="btn" id="openDashboard" style="margin-left:8px">Open owner dashboard</button>
+    </div>
+  </div>
+ 
+<script>
+  const data = JSON.parse(localStorage.getItem('last_booking')||'null');
+  if(!data){ document.getElementById('summary').textContent = 'No booking found in storage.'; }
+  else {
+    const b = data.booking;
+    const when = new Date(b.time);
+    document.getElementById('summary').innerHTML = `<strong>${b.guestName}</strong> — ${b.guestEmail}<br><span class="muted">${when.toLocaleString()}</span><div style="margin-top:10px">${b.notes||''}</div>`;
+  }
+ 
+  document.getElementById('backHome').onclick = ()=> location.href='index.html';
+  document.getElementById('openDashboard').onclick = ()=>{
+    // try to open dashboard for the owner if they have an account
+    const accounts = JSON.parse(localStorage.getItem('ds_accounts')||'[]');
+    const found = accounts.find(a=> a.email === (data && data.ownerEmail));
+    if(found){
+      localStorage.setItem('ds_current_user', found.email);
+      location.href='dashboard.html';
+    } else { alert('Owner has no dashboard in this demo.'); }
+  };
+</script>
+</body>
+</html>
+ 
+Syntax highlighting powered by GeSHi
+Help Guide | License
